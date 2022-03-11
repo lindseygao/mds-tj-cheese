@@ -75,6 +75,10 @@ Since the units and scales of columns are different, we need to adjust/normalize
 
 I normalized the data using the min-max normalization method so that the results are not skewed by the units of each observation. Min-max normalization calculates the min and max value in each column, and then maps each column entry x to (x-min)/(max-min). This transformation of the data will result in a new data set in which each column has a minimum of 0 and a maximum of 1.
 
+### Initial Plots
+
+Below is the eigenvalue plot of the model:
+
 ```{r Normalization Method 1/2 & Create Model for df 1}
 # normalize df
 norm_df <- normalize(df, method = "range", range = c(0,1), margin = 2)
@@ -86,10 +90,13 @@ norm_dist <- dist(norm_df)
 dim1model <- cmdscale(norm_dist, k = 1, eig = TRUE) ##
 
 #eigenvalue plot
-plot(dim1model$eig, xlab = "Dimensions", ylab = "Eigenvalues")
+plot(dim1model$eig, xlab = "Dimension", ylab = "Eigenvalue")
 title("Eigenvalue Plot")
 
 ```
+
+We see that the first 4 eigenvalues are pretty large.
+
 ```{r include=FALSE, eval=TRUE}
 dim1_e <- round(sum(dim1model$eig[1]) /sum(dim1model$eig),3)
 dim2_e <- round(sum(dim1model$eig[1:2]) /sum(dim1model$eig),3)
@@ -98,30 +105,40 @@ dim3_e <- round(sum(dim1model$eig[1:3]) /sum(dim1model$eig),3)
 ```
 The first eigenvalue captures `r dim1_e` of the total energy (proportion of the total eigenvalues) in the data. The first 2 eigenvalues capture `r dim2_e` of the total energy and the first 3 eigenvalues capture `r dim3_e` of the total energy.
 
+### One-Dimensional Model
+
 Below is the plot of the one dimensional model of the data:
 ```{r}
 # GOF
 dim1_GOF = round(dim1model$GOF,4)[1]
 
-textplot(x=dim1model[[1]], y=rep(0,length(cheese_label)), cheese_label, xlim=c(-0.75,1.25), cex = 0.7)
+textplot(x=dim1model[[1]], y=rep(0,length(cheese_label)), cheese_label, xlim=c(-0.75,1.25), cex = 0.7,xlab='Dimension 1', ylab='')
+title("One Dimensional Model Using MDS")
+
 
 
 ```
 
-The distance plot is shown below:
+We can also plot how the distances produced in the one-dimensional model differ from the original distances:
 
 ```{r}
 # dim 1 distance plot
 plot(norm_dist, dist(dim1model$points),
-     xlab = "original distances", ylab = "dimension 1 model distance", asp = 1, xlim = c(0,2.25), ylim = c(0,2.25))
-title("One Dimensional Model Using MDS")
+     xlab = "Original Distance", ylab = "Dimension 1 Model Distance", asp = 1, xlim = c(0,2.25), ylim = c(0,2.25))
+title("Distance Plot of One Dimensional Model")
 abline(0,1)
 
 dim1_metrics <- dist_metrics(dim1model, norm_dist)
 # dim1_metrics[1]  mean abs
 ```
 
-The mean absolute difference between the one dimensional model's distances and the true distances is `r dim1_metrics[1]` and the mean squared difference is `r dim1_metrics[2]`. The GOF value of the dimension 1 model is `r dim1_GOF`.
+The line y = x is also plotted (indicating a perfect fit). We observe that the observations are somewhat close to the line but noticeable deviations are visible.
+
+We can evaluate the model interms of 3 additional metrics: (1) the goodness-of-fit (GOF), (2) mean absolute difference and the (3) mean squared difference of the model’s distance and the true distances.
+
+  * The mean absolute difference is `r dim1_metrics[1]` 
+  * The mean squared difference is `r dim1_metrics[2]`
+  * The GOF value is `r dim1_GOF`
 
 Below is an interactive plot of the one dimensional model of the data to easily see the labels of variou cheeses. Note that the color scale is the price of the cheese in dollars/lb.
 ```{r}
@@ -132,19 +149,26 @@ d1_df$cheese <- cheese_label
 dim1_plot <- ggplot(data = d1_df, mapping = aes_string(x = 'dim1', y='y', color = 'price', text="cheese")) + 
   scale_color_gradient(low="yellow", high="blue") +
   geom_point() + 
-  ggtitle("One Dimensional Model Using MDS")
+  ggtitle("One Dimensional Model Using MDS") +
+  xlab('Dimension 1')
 ggplotly(dim1_plot, tooltip = "text")
 ```
 
 It's interesting to note that the vegan cheese options are clustered together and the goat cheese and feta cheese options are also somewhat grouped together. However, the majority of cheeses seem to reside on the left side (many of which are cheddar cheeses).
 
+### Two-Dimensional Model
+Below is a plot of the 2 dimensional model:
+
 ```{r}
 # create 2d model
 dim2model <- cmdscale(norm_dist, k = 2, eig = TRUE)
 
-textplot(x=dim2model$points[,1],y=dim2model$points[,2],cheese_label,xlim=c(-2.25,2.25), ylim=c(-1,1), asp=1, cex = 0.6)
+textplot(x=dim2model$points[,1],y=dim2model$points[,2],cheese_label,xlim=c(-2.25,2.25), ylim=c(-1,1), asp=1, cex = 0.6, xlab='Dimension 1', ylab='Dimension 2')
+title("Two Dimensional Model Using MDS")
 
 ```
+
+Below is the distance plot of the 2 dimensional model:
 
 ```{r}
 # GOF
@@ -152,15 +176,21 @@ dim2_GOF <- round(dim2model$GOF,4)[1]
 
 # dim 2 distance plot
 plot(norm_dist, dist(dim2model$points),
-     xlab = "original distances", ylab = "dimension 2 model distance",xlim = c(0,2.25), ylim = c(0,2.25), asp=1)
+     xlab = "Original Distance", ylab = "Dimension 2 Model Distance",xlim = c(0,2.25), ylim = c(0,2.25), asp=1)
 abline(0,1)
+title("Distance Plot of Two Dimensional Model")
 
 # dim 2 dist metrics
 dim2_metrics <- dist_metrics(dim2model, norm_dist)
 ```
 
-The mean absolute difference between the one dimensional model's distances and the true distances is `r dim2_metrics[1]` and the mean squared difference is `r dim2_metrics[2]`. The GOF value of the dimension 1 model is `r dim2_GOF`.
+We observe that the distance plot of the two-dimensional model fit the line $y = x$ much better than the one-dimensional model.
 
+The additional evaluations metrics for the two dimensional model are:
+
+  * Mean absolute difference: `r dim2_metrics[1]` 
+  * Mean squared difference: `r dim2_metrics[2]`
+  * GOF value: `r dim2_GOF`.
 
 Below is an interactive plot of the two dimensional model of the data. Again, the color scale is the price of the cheese in dollars/lb.
 
@@ -174,11 +204,15 @@ dim2_plot <- ggplot(data = d2_df,
                     color = 'price',text="cheese")) + 
               scale_color_gradient(low="yellow", high="blue") +
               geom_point() + 
-              ggtitle("Two Dimensional Model Using MDS")
+              ggtitle("Two Dimensional Model Using MDS") +
+              xlab('Dimension 1') +
+              ylab('Dimension 2')
 ggplotly(dim2_plot, tooltip = "text")
 ```
 
 In the two dimensional model, we once again see the vegan cheeses closely clustered together, signifying much dissimilarity from the other cheeses (which is to be expected based on nutritional composition). We also see ricotta is all the way in the far upper right corner and is the only ricotta cheese in this dataset. Again, we see that the many variations of cheddar cheese are also clustered together towards the left. A fun note is that unique cheeses "garlic bread cheese" and "pizza bread cheese" are also in the big cheddar cheese cluster and right next to each other.
+
+### Three-Dimensional Model
 
 Below is the distance plot comparing the distances of the three-dimensional model and the true normalized distances:
 
@@ -191,16 +225,23 @@ dim3_GOF <- round(dim3model$GOF,4)[1]
 
 # dim 3 distance plot
 plot(norm_dist, dist(dim3model$points),
-     xlab = "original distances", ylab = "dimension 3 model distance", asp=1, xlim = c(0,2.25), ylim = c(0,2.25))
+     xlab = "Original Distance", ylab = "Dimension 3 Model Distance", asp=1, xlim = c(0,2.25), ylim = c(0,2.25))
 abline(0,1)
+title("Distance Plot of Three Dimensional Model")
 
 # dim 3 dist metrics
 dim3_metrics <- dist_metrics(dim3model, norm_dist)
 ```
 
-The mean absolute difference between the one dimensional model's distances and the true distances is `r dim3_metrics[1]` and the mean squared difference is `r dim3_metrics[2]`. The GOF value of the dimension 1 model is `r dim3_GOF`.
+We observe that the distance plot of the three-dimensional model fit the line $y = x$ slightly better than the two-dimensional model, but the difference is not as great as increasing from one to two dimensions. Again, I have calculated the additional evaluation metrics below:
 
-Below is a table summary of the various evaluation metrics for the 3 models:
+  * Mean absolute difference: `r dim3_metrics[1]` 
+  * Mean squared difference: `r dim3_metrics[2]`
+  * GOF value: `r dim3_GOF`.
+  
+### Summary of Models
+
+Below is a table summary of the various evaluation metrics for the three different models:
 
 ```{r}
 GOFs <- list(dim1_GOF, dim2_GOF, dim3_GOF)
@@ -211,6 +252,8 @@ colnames(summary_stats) <- c('1D Model', '2D Model', '3D Model')
 rownames(summary_stats) <- c('GOF', 'Mean Abs Diff', 'Mean Squared Diff')
 summary_stats
 ```
+
+We see that there are huge improvements to the model when increase the dimension from one to two and a smaller improvement from increasing the dimension from two to three. This aligns with what we saw from the distance plots.
 
 ```{r include=FALSE, eval=FALSE}
 # row sum of everything
