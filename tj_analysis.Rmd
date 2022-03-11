@@ -1,18 +1,30 @@
 ---
 title: MDS On Trader Joe's Cheese
 author: Lindsey Gao
-date: "3/10/2022"
-output: html_document
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output: 
+  html_document:
+    highlight: "pygments"
+    theme: cosmo
+    toc: true
+    toc_float: true
+    toc_depth: 5
 ---
 
 ```{r setup, include=FALSE, message=FALSE}
 knitr::opts_chunk$set(echo=FALSE)
+options(width = 20)
 library(tidyverse)
 library(BBmisc)
 library(knitr)
 library(wordcloud)
 library(ggplot2)
 library(plotly)
+library(kableExtra)
+library(stringr)
+library(rmdformats)
+library(prettydoc)
+library(rmarkdown)
 ```
 
 ### Applying Multidimensional Scaling (MDS) to Trader Joe's Cheese
@@ -24,11 +36,12 @@ The set of objects does not have to have a known high-dimensional model. Moreove
 I will applied MDS to a dataset I created by webscraping nutritional and other information on cheeses from the Trader Joes's website: https://www.traderjoes.com/home/products/category/cheese-29
 
 ```{r}
-df <- read.csv('clean_df.csv', sep = ",", header = TRUE)
+df_all <- read.csv('clean_df.csv', sep = ",", header = TRUE)
+df_all <- subset(df_all, select = -c(url,serving.size))
 
-cheese_label <- df$product
+cheese_label <- df_all$product
 
-df = subset(df, select = -c(url,product))
+df = subset(df_all, select = -c(product))
 
 colnames(df) <- lapply(colnames(df), tolower)
 ```
@@ -44,18 +57,24 @@ dist_metrics <- function(model, dist) {
 }
 ```
 
-
 ### Preparing the Data to Model
 The process to clean the data was tedious and done in Python. This process is commented well in the python notebook on the repository page here: https://github.com/lindseygao/mds-tj-cheese. The repository also includes the clean dataset, named `clean_df`.
 
-After cleaning the data, which involved dropping necessary columns and filling in missing data, I ended with a dataset with the following features:
+After cleaning the data, which involved dropping necessary columns and filling in missing data, I ended with a dataset with the following nutrition features:
+
 ```{r}
 glimpse(df)
 ```
 
+There are 31 observations (different cheeses) and 9 nutrition features. A preview of the dataset with the first 5 observations/cheeses is shown below:
+
 ```{r}
-head(df, 3)
+spaced_col_names <- lapply((colnames(df_all)), str_replace, pattern="\\.", replacement=" ")
+head(df_all, 5) %>%
+  kable(caption = "Preview of Dataset: First 5 Observations", col.names = spaced_col_names, digits = 3) %>%
+  kable_minimal()
 ```
+
 The units of the columns are as follows:
 
   * Price: dollars/lb
@@ -76,7 +95,6 @@ Since the units and scales of columns are different, we need to adjust/normalize
 I normalized the data using the min-max normalization method so that the results are not skewed by the units of each observation. Min-max normalization calculates the min and max value in each column, and then maps each column entry x to (x-min)/(max-min). This transformation of the data will result in a new data set in which each column has a minimum of 0 and a maximum of 1.
 
 ### Initial Plots
-
 Below is the eigenvalue plot of the model:
 
 ```{r Normalization Method 1/2 & Create Model for df 1}
@@ -92,7 +110,6 @@ dim1model <- cmdscale(norm_dist, k = 1, eig = TRUE) ##
 #eigenvalue plot
 plot(dim1model$eig, xlab = "Dimension", ylab = "Eigenvalue")
 title("Eigenvalue Plot")
-
 ```
 
 We see that the first 4 eigenvalues are pretty large.
@@ -106,7 +123,6 @@ dim3_e <- round(sum(dim1model$eig[1:3]) /sum(dim1model$eig),3)
 The first eigenvalue captures `r dim1_e` of the total energy (proportion of the total eigenvalues) in the data. The first 2 eigenvalues capture `r dim2_e` of the total energy and the first 3 eigenvalues capture `r dim3_e` of the total energy.
 
 ### One-Dimensional Model
-
 Below is the plot of the one dimensional model of the data:
 ```{r}
 # GOF
@@ -114,9 +130,6 @@ dim1_GOF = round(dim1model$GOF,4)[1]
 
 textplot(x=dim1model[[1]], y=rep(0,length(cheese_label)), cheese_label, xlim=c(-0.75,1.25), cex = 0.7,xlab='Dimension 1', ylab='')
 title("One Dimensional Model Using MDS")
-
-
-
 ```
 
 We can also plot how the distances produced in the one-dimensional model differ from the original distances:
@@ -150,7 +163,8 @@ dim1_plot <- ggplot(data = d1_df, mapping = aes_string(x = 'dim1', y='y', color 
   scale_color_gradient(low="yellow", high="blue") +
   geom_point() + 
   ggtitle("One Dimensional Model Using MDS") +
-  xlab('Dimension 1')
+  xlab('Dimension 1') +
+  ylab('')
 ggplotly(dim1_plot, tooltip = "text")
 ```
 
@@ -240,7 +254,6 @@ We observe that the distance plot of the three-dimensional model fit the line $y
   * GOF value: `r dim3_GOF`.
   
 ### Summary of Models
-
 Below is a table summary of the various evaluation metrics for the three different models:
 
 ```{r}
@@ -253,7 +266,80 @@ rownames(summary_stats) <- c('GOF', 'Mean Abs Diff', 'Mean Squared Diff')
 summary_stats
 ```
 
+Below is all three distance plots together for easy comparison:
+
+```{r, fig.show="hold", out.width="50%"}
+plot(norm_dist, dist(dim1model$points),
+     xlab = "Original Distance", ylab = "Dimension 1 Model Distance", asp = 1, xlim = c(0,2.25), ylim = c(0,2.25))
+title("Distance Plot of One Dimensional Model")
+abline(0,1)
+
+plot(norm_dist, dist(dim2model$points),
+     xlab = "Original Distance", ylab = "Dimension 2 Model Distance",xlim = c(0,2.25), ylim = c(0,2.25), asp=1)
+abline(0,1)
+title("Distance Plot of Two Dimensional Model")
+
+plot(norm_dist, dist(dim3model$points),
+     xlab = "Original Distance", ylab = "Dimension 3 Model Distance", asp=1, xlim = c(0,2.25), ylim = c(0,2.25))
+abline(0,1)
+title("Distance Plot of Three Dimensional Model")
+```
+
 We see that there are huge improvements to the model when increase the dimension from one to two and a smaller improvement from increasing the dimension from two to three. This aligns with what we saw from the distance plots.
+
+### Investigating Meaning of Dimensions
+A question that is often asked is how should we interpret the dimensions of our model? We can first how the dimension of our model correlates to each feature. Below is a table of the correlation value between the first dimension and each column of our dataset:
+
+```{r}
+# investigating dimension 1
+
+# get correlation table
+all_corr <- c()
+for (col in colnames(df)) {
+  all_corr <- append(all_corr,round(cor(d2_df$dim1, df[[col]]),4)) 
+}
+indexes <- which(abs(all_corr) > 0.7)
+all_corr <- as.data.frame(cbind(colnames(df), all_corr))
+colnames(all_corr) <- c('Feature', 'Correlation')
+kable(all_corr, caption = "Correlation Between Features & First Dimension") %>% 
+  kable_styling(full_width = F)
+```
+
+We see that there seems to be high correlation for the protein, calories, cholesterol, and calcium columns. We can plot how the first dimension compares to each of these columns with high correlation:
+
+```{r, fig.show="hold", out.width="50%"}
+# plotting dim1 correlation plots
+for (i in indexes) {
+  plot(d2_df$dim1, df[[i]], xlab = 'Dimension 1', ylab = paste0('Feature: ', all_corr[i,1]))
+}
+```
+
+All of these four columns are negatively correlated to dimension one, suggesting that dimension one may be a combination of these four features.
+
+We can do a similar correlation calculation for the second dimension. The correlation table is shown below:
+
+```{r}
+# investigating dimension 2
+all_corr <- c()
+for (col in colnames(df)) {
+  all_corr <- append(all_corr,round(cor(d2_df$dim2, df[[col]]),4))
+}
+indexes <- which(abs(all_corr) > 0.7)
+all_corr <- as.data.frame(cbind(colnames(df), all_corr))
+colnames(all_corr) <- c('Feature', 'Correlation')
+kable(all_corr, caption = "Correlation Between Features & Second Dimension", digits = 4) %>% 
+  kable_styling(full_width = F)
+```
+
+We see that there seems to be high correlation for the saturated fat and total fat columns. We can now plot these columns against the second dimension:
+
+```{r, fig.show="hold", out.width="50%"}
+for (i in indexes) {
+  plot(d2_df$dim2, df[[i]], xlab = 'Dimension 2', ylab = paste0('Feature: ', all_corr[i,1]))
+}
+```
+
+The second dimension seems to represent the fat level of the cheese, with a lower dimension two value corresponding to a higher fat content.
 
 ```{r include=FALSE, eval=FALSE}
 # row sum of everything
