@@ -1,0 +1,229 @@
+---
+title: MDS On Trader Joe's Cheese
+author: Lindsey Gao
+date: "3/10/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo=FALSE)
+library(tidyverse)
+library(BBmisc)
+library(knitr)
+library(wordcloud)
+library(ggplot2)
+library(plotly)
+```
+
+### Applying Multidimensional Scaling (MDS) to Trader Joe's Cheese
+
+Multidimensional scaling (MDS) is a method that allows you to create a low-dimensional model of a set of objects that maintains as much of the inter-object distance relationship as possible. MDS does this using a set of pair-wise distances for a set of objects. It takes this and creates a set of points in a low-dimensional Euclidean space, where each point corresponds to a different object in the set such that the pair-wise distances between the points are as similar as possible to the corresponding pair-wise distances between the objects.
+
+The set of objects does not have to have a known high-dimensional model. Moreover, the choice of how the distances between the objects are defined is up to us; we can choose among many distance metrics - one simple example is euclidean distance, which is what I will be using to create my models in the following sections. We then create a symmetric distance matrix, $D$, in which $D_{ij}$ is the distance between objects $i$ and $j$ and $D_{ij} = D_{ji}$ and $D_{ii} = 0$.
+
+I will applied MDS to a dataset I created by webscraping nutritional and other information on cheeses from the Trader Joes's website: https://www.traderjoes.com/home/products/category/cheese-29
+
+```{r}
+df <- read.csv('clean_df.csv', sep = ",", header = TRUE)
+
+cheese_label <- df$product
+
+df = subset(df, select = -c(url,product))
+
+colnames(df) <- lapply(colnames(df), tolower)
+```
+
+```{r}
+# calculate mean sq diff & mean abs diff
+dist_metrics <- function(model, dist) {
+  model_dist <- as.matrix(dist(model$points))
+  dist <- as.matrix(dist)
+  mean_abs <- mean(abs(dist-model_dist))
+  mean_sq <- mean((dist-model_dist)^2)
+  return(c(round(mean_abs,4), round(mean_sq,4)))
+}
+```
+
+
+### Preparing the Data to Model
+The process to clean the data was tedious and done in Python. This process is commented well in the python notebook on the repository page here: https://github.com/lindseygao/mds-tj-cheese. The repository also includes the clean dataset, named `clean_df`.
+
+After cleaning the data, which involved dropping necessary columns and filling in missing data, I ended with a dataset with the following features:
+```{r}
+glimpse(df)
+```
+
+```{r}
+head(df, 3)
+```
+The units of the columns are as follows:
+
+  * Price: dollars/lb
+  * Serving size: g (standardized to be 28g)
+  * Calories: calories
+  * Total Fat: g
+  * Saturated Fat: g
+  * Cholesterol: mg
+  * Sodium: mg
+  * Total Carbohydrate: g 
+  * Protein: g 
+  * Calcium: mg
+  
+Note that the nutrition information has been calculated/standardized for 1 serving size of 28 grams.
+
+Since the units and scales of columns are different, we need to adjust/normalize the columns of the input data so that they are all "comparable." This is to ensure that the scale of each dimension of the vectors does not overly affect the distance calculations and, hence, our MDS model.
+
+I normalized the data using the min-max normalization method so that the results are not skewed by the units of each observation. Min-max normalization calculates the min and max value in each column, and then maps each column entry x to (x-min)/(max-min). This transformation of the data will result in a new data set in which each column has a minimum of 0 and a maximum of 1.
+
+```{r Normalization Method 1/2 & Create Model for df 1}
+# normalize df
+norm_df <- normalize(df, method = "range", range = c(0,1), margin = 2)
+
+# create distance matrix
+norm_dist <- dist(norm_df)
+
+# create 1d model
+dim1model <- cmdscale(norm_dist, k = 1, eig = TRUE) ##
+
+#eigenvalue plot
+plot(dim1model$eig, xlab = "Dimensions", ylab = "Eigenvalues")
+title("Eigenvalue Plot")
+
+```
+```{r include=FALSE, eval=TRUE}
+dim1_e <- round(sum(dim1model$eig[1]) /sum(dim1model$eig),3)
+dim2_e <- round(sum(dim1model$eig[1:2]) /sum(dim1model$eig),3)
+dim3_e <- round(sum(dim1model$eig[1:3]) /sum(dim1model$eig),3)
+# dim1model$eig[1:3]/sum(dim1model$eig)
+```
+The first eigenvalue captures `r dim1_e` of the total energy (proportion of the total eigenvalues) in the data. The first 2 eigenvalues capture `r dim2_e` of the total energy and the first 3 eigenvalues capture `r dim3_e` of the total energy.
+
+Below is the plot of the one dimensional model of the data:
+```{r}
+# GOF
+dim1_GOF = round(dim1model$GOF,4)[1]
+
+textplot(x=dim1model[[1]], y=rep(0,length(cheese_label)), cheese_label, xlim=c(-0.75,1.25), cex = 0.7)
+
+
+```
+
+The distance plot is shown below:
+
+```{r}
+# dim 1 distance plot
+plot(norm_dist, dist(dim1model$points),
+     xlab = "original distances", ylab = "dimension 1 model distance", asp = 1, xlim = c(0,2.25), ylim = c(0,2.25))
+title("One Dimensional Model Using MDS")
+abline(0,1)
+
+dim1_metrics <- dist_metrics(dim1model, norm_dist)
+# dim1_metrics[1]  mean abs
+```
+
+The mean absolute difference between the one dimensional model's distances and the true distances is `r dim1_metrics[1]` and the mean squared difference is `r dim1_metrics[2]`. The GOF value of the dimension 1 model is `r dim1_GOF`.
+
+Below is an interactive plot of the one dimensional model of the data to easily see the labels of variou cheeses. Note that the color scale is the price of the cheese in dollars/lb.
+```{r}
+d1_df <- as.data.frame(cbind(dim1model[[1]],rep(0,length(cheese_label))))
+colnames(d1_df) <- c('dim1','y')
+d1_df$price <- df$price
+d1_df$cheese <- cheese_label
+dim1_plot <- ggplot(data = d1_df, mapping = aes_string(x = 'dim1', y='y', color = 'price', text="cheese")) + 
+  scale_color_gradient(low="yellow", high="blue") +
+  geom_point() + 
+  ggtitle("One Dimensional Model Using MDS")
+ggplotly(dim1_plot, tooltip = "text")
+```
+
+It's interesting to note that the vegan cheese options are clustered together and the goat cheese and feta cheese options are also somewhat grouped together. However, the majority of cheeses seem to reside on the left side (many of which are cheddar cheeses).
+
+```{r}
+# create 2d model
+dim2model <- cmdscale(norm_dist, k = 2, eig = TRUE)
+
+textplot(x=dim2model$points[,1],y=dim2model$points[,2],cheese_label,xlim=c(-2.25,2.25), ylim=c(-1,1), asp=1, cex = 0.6)
+
+```
+
+```{r}
+# GOF
+dim2_GOF <- round(dim2model$GOF,4)[1]
+
+# dim 2 distance plot
+plot(norm_dist, dist(dim2model$points),
+     xlab = "original distances", ylab = "dimension 2 model distance",xlim = c(0,2.25), ylim = c(0,2.25), asp=1)
+abline(0,1)
+
+# dim 2 dist metrics
+dim2_metrics <- dist_metrics(dim2model, norm_dist)
+```
+
+The mean absolute difference between the one dimensional model's distances and the true distances is `r dim2_metrics[1]` and the mean squared difference is `r dim2_metrics[2]`. The GOF value of the dimension 1 model is `r dim2_GOF`.
+
+
+Below is an interactive plot of the two dimensional model of the data. Again, the color scale is the price of the cheese in dollars/lb.
+
+```{r}
+d2_df <- as.data.frame(dim2model$points[,1:2])
+colnames(d2_df) <- c('dim1','dim2')
+d2_df$price <- df$price
+d2_df$cheese <- cheese_label
+dim2_plot <- ggplot(data = d2_df, 
+                    mapping = aes_string(x = 'dim1', y = 'dim2', 
+                    color = 'price',text="cheese")) + 
+              scale_color_gradient(low="yellow", high="blue") +
+              geom_point() + 
+              ggtitle("Two Dimensional Model Using MDS")
+ggplotly(dim2_plot, tooltip = "text")
+```
+
+In the two dimensional model, we once again see the vegan cheeses closely clustered together, signifying much dissimilarity from the other cheeses (which is to be expected based on nutritional composition). We also see ricotta is all the way in the far upper right corner and is the only ricotta cheese in this dataset. Again, we see that the many variations of cheddar cheese are also clustered together towards the left. A fun note is that unique cheeses "garlic bread cheese" and "pizza bread cheese" are also in the big cheddar cheese cluster and right next to each other.
+
+Below is the distance plot comparing the distances of the three-dimensional model and the true normalized distances:
+
+```{r}
+# create 3d model
+dim3model <- cmdscale(norm_dist, k = 3, eig = TRUE)
+
+# GOF
+dim3_GOF <- round(dim3model$GOF,4)[1]
+
+# dim 3 distance plot
+plot(norm_dist, dist(dim3model$points),
+     xlab = "original distances", ylab = "dimension 3 model distance", asp=1, xlim = c(0,2.25), ylim = c(0,2.25))
+abline(0,1)
+
+# dim 3 dist metrics
+dim3_metrics <- dist_metrics(dim3model, norm_dist)
+```
+
+The mean absolute difference between the one dimensional model's distances and the true distances is `r dim3_metrics[1]` and the mean squared difference is `r dim3_metrics[2]`. The GOF value of the dimension 1 model is `r dim3_GOF`.
+
+Below is a table summary of the various evaluation metrics for the 3 models:
+
+```{r}
+GOFs <- list(dim1_GOF, dim2_GOF, dim3_GOF)
+mean_abs <- list(dim1_metrics[1], dim2_metrics[1], dim3_metrics[1])
+mean_sq <- list(dim1_metrics[2], dim2_metrics[2], dim3_metrics[2])
+summary_stats <- rbind(GOFs, mean_abs, mean_sq)
+colnames(summary_stats) <- c('1D Model', '2D Model', '3D Model')
+rownames(summary_stats) <- c('GOF', 'Mean Abs Diff', 'Mean Squared Diff')
+summary_stats
+```
+
+```{r include=FALSE, eval=FALSE}
+# row sum of everything
+rowsum <- cbind(cheese_label, rowSums(norm_df) %>% sort() %>% round(., 4) )
+colnames(rowsum) <- c("cheese", "sum of all columns")
+library(xtable)
+xtable(rowsum)
+```
+
+```{r include=FALSE}
+# row sum of 
+# m_rowsum <- cbind(cheese_label, norm_df %>% select() %>% rowSums())
+
+# kable(df_v1, "latex") latex table
+```
+
