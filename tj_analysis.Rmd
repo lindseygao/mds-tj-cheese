@@ -77,17 +77,16 @@ head(df_all, 5) %>%
 
 The units of the columns are as follows:
 
-  * Price: dollars/lb
-  * Serving size: g (standardized to be 28g)
-  * Calories: calories
-  * Total Fat: g
-  * Saturated Fat: g
-  * Cholesterol: mg
-  * Sodium: mg
-  * Total Carbohydrate: g 
-  * Protein: g 
-  * Calcium: mg
-  
+ * Price: dollars/lb
+ * Calories: calories
+ * Total Fat: g
+ * Saturated Fat: g
+ * Cholesterol: mg
+ * Sodium: mg
+ * Total Carbohydrate: g 
+ * Protein: g 
+ * Calcium: mg
+ 
 Note that the nutrition information has been calculated/standardized for 1 serving size of 28 grams.
 
 Since the units and scales of columns are different, we need to adjust/normalize the columns of the input data so that they are all "comparable." This is to ensure that the scale of each dimension of the vectors does not overly affect the distance calculations and, hence, our MDS model.
@@ -149,9 +148,9 @@ The line y = x is also plotted (indicating a perfect fit). We observe that the o
 
 We can evaluate the model interms of 3 additional metrics: (1) the goodness-of-fit (GOF), (2) mean absolute difference and the (3) mean squared difference of the model’s distance and the true distances.
 
-  * The mean absolute difference is `r dim1_metrics[1]` 
-  * The mean squared difference is `r dim1_metrics[2]`
-  * The GOF value is `r dim1_GOF`
+ * The mean absolute difference is `r dim1_metrics[1]` 
+ * The mean squared difference is `r dim1_metrics[2]`
+ * The GOF value is `r dim1_GOF`
 
 Below is an interactive plot of the one dimensional model of the data to easily see the labels of variou cheeses. Note that the color scale is the price of the cheese in dollars/lb.
 ```{r}
@@ -202,9 +201,9 @@ We observe that the distance plot of the two-dimensional model fit the line $y =
 
 The additional evaluations metrics for the two dimensional model are:
 
-  * Mean absolute difference: `r dim2_metrics[1]` 
-  * Mean squared difference: `r dim2_metrics[2]`
-  * GOF value: `r dim2_GOF`.
+ * Mean absolute difference: `r dim2_metrics[1]`
+ * Mean squared difference: `r dim2_metrics[2]`
+ * GOF value: `r dim2_GOF`.
 
 Below is an interactive plot of the two dimensional model of the data. Again, the color scale is the price of the cheese in dollars/lb.
 
@@ -249,9 +248,9 @@ dim3_metrics <- dist_metrics(dim3model, norm_dist)
 
 We observe that the distance plot of the three-dimensional model fit the line $y = x$ slightly better than the two-dimensional model, but the difference is not as great as increasing from one to two dimensions. Again, I have calculated the additional evaluation metrics below:
 
-  * Mean absolute difference: `r dim3_metrics[1]` 
-  * Mean squared difference: `r dim3_metrics[2]`
-  * GOF value: `r dim3_GOF`.
+ * Mean absolute difference: `r dim3_metrics[1]`
+ * Mean squared difference: `r dim3_metrics[2]`
+ * GOF value: `r dim3_GOF`.
   
 ### Summary of Models
 Below is a table summary of the various evaluation metrics for the three different models:
